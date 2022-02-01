@@ -1,7 +1,18 @@
 <template>
   <img alt="Vue logo" src="./assets/logo.png"><br>
-  <button @click="connectToWallet">Connect</button><br>
-  <button @click="wave">Make a wave</button>
+  <button @click="connectToWallet" class="btn btn-info">{{ connectStatus }}</button><br>
+  <button @click="wave" class="btn btn-dark mt-2">Make a wave</button>
+
+  <div class="waves" v-if="allWaves.length" >
+    <div class="mt-5 border border-dark d-flex flex-column p-4" v-for="wave in allWaves" :key="wave">
+      <div class="fw-bold">{{ wave.address }}</div>
+      <div class="fst-italic">{{ wave.timestamp }}</div>
+      <div class="fs-4">{{ wave.message }}</div>
+    </div>
+  </div>
+  <div v-else class="waves">
+    <h2 class="mt-5">No waves yet...</h2>
+  </div>
 </template>
 
 <script>
@@ -13,14 +24,41 @@ export default {
   name: 'App',
   data() {
     return {
-      contractAddress: "0x39b351095a6e8664a53d38bc0aC231Fb9a21A966",
+      contractAddress: "0x3ce690960d2684eD7BB760C1E14a9b0a5Af14867",
       contractABI: abi.abi,
+      connectStatus: 'Connect',
+      allWaves: []
     }
   },
   mounted() {
     this.checkIfWalletIsConnected();
   },
   methods: {
+    async getAllWaves() {
+      this.allWaves = [];
+      try {
+        const { ethereum } = window;
+        if (ethereum) {
+          const provider = new ethers.providers.Web3Provider(ethereum);
+          const signer = provider.getSigner();
+          const wavePortalContract = new ethers.Contract(this.contractAddress, this.contractABI, signer);
+
+          const waves = await wavePortalContract.getAllWaves();
+
+          waves.forEach(wave => {
+            this.allWaves.push({
+              address: wave.waver,
+              timestamp: new Date(wave.timestamp * 1000),
+              message: wave.message
+            })
+          })
+        }
+
+      } catch (err) {
+        console.log(err)
+      }
+
+    },
     async checkIfWalletIsConnected() {
       try {
         const { ethereum } = window;
@@ -39,7 +77,8 @@ export default {
         if (accounts.length !== 0) {
           const account = accounts[0];
           console.log("Found an authorized account:", account);
-          //setCurrentAccount(account)
+          this.connectStatus = "Connected";
+          await this.getAllWaves();
         } else {
           console.log("No authorized account found");
         }
@@ -81,7 +120,7 @@ export default {
           let count = await wavePortalContract.getTotalWaves();
           console.log("Retrieved total wave count...", count.toNumber())
 
-          const waveTxn = await wavePortalContract.wave();
+          const waveTxn = await wavePortalContract.wave("Message here!");
           console.log("Mining...", waveTxn.hash);
 
           await waveTxn.wait();
@@ -89,6 +128,8 @@ export default {
 
           count = await wavePortalContract.getTotalWaves();
           console.log("Retrieved total wave count...", count.toNumber())
+
+          await this.getAllWaves();
 
         } else {
           console.log("Ethereum object doesn't exist!");
@@ -110,5 +151,9 @@ export default {
   text-align: center;
   color: #2c3e50;
   margin-top: 60px;
+}
+.waves {
+  max-width: 600px;
+  margin: 0px auto;
 }
 </style>
